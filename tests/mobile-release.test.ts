@@ -27,6 +27,18 @@ describe("mobile release links", () => {
     expect(workflow).not.toMatch(/^\s+push:/m);
     expect(eas.build["production-no-push"]).toEqual({ extends: "production", env: { GUILDED_MOBILE_NO_PUSH: "1" } });
   });
+  it("builds store bundles on GitHub only by hand, with EAS signing, and never uploads them", () => {
+    const workflow = readFileSync(".github/workflows/mobile-store-build.yml", "utf8");
+    expect(workflow).toMatch(/^on:\n {2}workflow_dispatch:/m);
+    expect(workflow).not.toMatch(/^\s+(push|pull_request|schedule):/m);
+    expect(workflow).toMatch(/eas-cli@\d+\.\d+\.\d+/);
+    expect(workflow).toContain('build --platform android --profile "$PROFILE" --local --non-interactive');
+    // Expo-managed credentials: no keystore, no Play key and no submit step in the job.
+    expect(workflow).not.toMatch(/eas[- ]submit|\bsubmit\b --|keystore|credentialsSource|PLAY_SERVICE_ACCOUNT/i);
+    expect(workflow).toContain("Signing key differs");
+    expect(workflow).toContain("actions/upload-artifact@");
+    for (const line of workflow.split("\n").filter(row => /uses: /.test(row))) expect(line, line).toMatch(/@[0-9a-f]{40} # v/);
+  });
   it("keeps Guilded Clash out of the app unless the build flag asks for it", () => {
     // The game is on hold (owner, 14 November 2026): hidden, not deleted. Only me/MeTab.tsx may reach it, through
     // clash/entry, which Metro swaps for an empty module unless the flag is set.
